@@ -11,3 +11,10 @@ This project focuses on Pandas in Python using Jupyter Notebooks. My partner (Da
 
 ## KNN on Iris Dataset
 This project was my introduction to Machine Learning. I fitted the K-Nearest Neighborhood algorithm to the famous Iris dataset. In the .ipynb, you will find a brief overview of the algorithm, the data, and the results of the algorithm. The entire code can be found in the Appendix at the bottom. 
+
+## K-Means Algorithm and Vector Quantization
+This project is a continuation of my Machine Learning inquiry. The algorithm I used the K-Means algorithm and I apply to images using vector quantization. In the folder attached to this repository is 'K-Means Algorithm'. Inside includes the necessary images, code to generate new images, and my paper which answers the following questions:
+ 1. How does the K-Means Algorithm work?
+ 2. What is vector quantization?
+ 3. Does the loss of luminosity weakens the performance of the algorithm on gray-scale images?
+ 4. Can different color models can share the same k values when performing vector quantization?
