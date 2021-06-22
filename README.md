@@ -1,4 +1,4 @@
-# ResumeProjects
+# Projects
 This repository is intended to showcase projects I have completed.
 ## Tableau Projects
 There are three Tabluea links in 'Tableau Links.md'. These links direct you to a single data visualization.
@@ -18,3 +18,6 @@ This project is a continuation of my Machine Learning inquiry. The algorithm I u
  2. What is vector quantization?
  3. Does the loss of luminosity weakens the performance of the algorithm on gray-scale images?
  4. Can different color models can share the same k values when performing vector quantization?
+
+## Ensemble Tree Methods
+In this project, I use many different types of trees to predict if a person would enroll in a bank promotional program. The types of trees that evaluate are simple decision trees, Random Forests, Bagging, and Gradient Boosting. Included is the code that generated results as well as paper that explains each method and result in detail.
