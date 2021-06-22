@@ -8,3 +8,6 @@ There are three Tabluea links in 'Tableau Links.md'. These links direct you to a
 
 ## Pandas Project
 This project focuses on Pandas in Python using Jupyter Notebooks. My partner (Daniel Seeley) and I used data distributed by the World Bank. We data-wrangled and cleansed, and asked questiosn such as "How do regions compare against each other in education attainment?" and "How does employment inequality differ across regions?". Using Pandas and Tableau visualations, we gave comprehensive issues of education and employment opportunites across the world. 
+
+## KNN on Iris Dataset
+This project was my introduction to Machine Learning. I fitted the K-Nearest Neighborhood algorithm to the famous Iris dataset. In the .ipynb, you will find a brief overview of the algorithm, the data, and the results of the algorithm. The entire code can be found in the Appendix at the bottom. 
