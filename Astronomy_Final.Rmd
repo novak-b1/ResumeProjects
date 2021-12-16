@@ -1,0 +1,422 @@
+---
+title: "Predicting Star Types of Low Mass Stars"
+author: "Brandon Novak"
+date: "December 17th, 2021"
+output: 
+  html_document:
+    code_folding: hide
+---
+
+NOTE: All code is provided. You can choose to Hide/Show Code at any point with the buttons on the right. 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+*Loading in data and packages.*
+
+```{r, warning=FALSE, message=FALSE, collapse=TRUE}
+setwd("~/Desktop/Astronomy")
+data <- read.csv("6 class csv.csv")
+library(ggplot2)
+library(caret)
+library(factoextra)
+library(reactable)
+library(dplyr)
+library(Hmisc)
+library(tree)
+library(corrplot)
+library(class)
+library(ggthemes)
+```
+
+*Performing some quick variable manipulations for later use.*
+
+```{r, warning=FALSE, message=FALSE, collapse=TRUE}
+#Star Colors
+data$Red <- ifelse(data$Star.color == 'Red', 1, 0)
+data$BlueWhite <- ifelse((data$Star.color == 'Blue White' | data$Star.color == 'Blue-White' | data$Star.color == 'Blue white' | data$Star.color == 'Blue-white'), 1, 0)
+data$White <- ifelse((data$Star.color == 'White' | data$Star.color == 'white' | data$Star.color == 'Whitish'), 1, 0)
+data$YellowWhite <- ifelse((data$Star.color == 'Yellowish White' | data$Star.color == 'yellow-white' | data$Star.color == 'White-Yellow'), 1, 0)
+data$YellowOrange <- ifelse(data$Star.color == 'Pale yellow orange', 1, 0)
+data$Blue <- ifelse((data$Star.color == 'Blue' | data$Star.color == 'Blue '), 1, 0)
+data$Orange <- ifelse((data$Star.color == 'Orange'), 1, 0)
+data$OrangeRed <- ifelse((data$Star.color == 'Orange-Red'), 1, 0)
+
+#Spectral.Class
+data$M <- ifelse((data$Spectral.Class == 'M'), 1, 0)
+data$B <- ifelse((data$Spectral.Class == 'B'), 1, 0)
+data$A <- ifelse((data$Spectral.Class == 'A'), 1, 0)
+data$F <- ifelse((data$Spectral.Class == 'F'), 1, 0)
+data$O <- ifelse((data$Spectral.Class == 'O'), 1, 0)
+data$K <- ifelse((data$Spectral.Class == 'K'), 1, 0)
+data$G <- ifelse((data$Spectral.Class == 'G'), 1, 0)
+
+data$Star.type <- as.factor(data$Star.type)
+```
+
+# Introduction
+
+For this project, we downloaded a data set that has key properties of stars. This year, we learned about the different spectral classes (O,B,A,F,G,K,M). Additionally, we mentioned the star types such as dwarfs and giant stars. These star types are essentially indicating at which point these stars are at in their existence. The data set contains stars that are giants, dwarfs, and stars on the Main Sequence. It appears it only contains Low Mass Stars, stars that are than 5-8 times the mass of our sun. The youngest stars that are available are those on the Main Sequence. Stars on the Main Sequence are considered "middle-aged" meanwhile stars that are giants are "old aged". Finally, stars that are considered "dead" are dwarfs. The goal of this report is to if the variables below are accurate predictors stars' age. Below list the types of stars and the variables used to predict Star Types. 
+
+:::: {style="display: flex;"}
+
+::: {}
+### Star Types
+
+1. Red Dwarf
+2. Brown Dwarf 
+3. White Dwarf
+4. Main Sequence
+5. Supergiants
+6. Hypergiants
+
+:::
+
+::: {}
+### Variables
+
+1. Absolute Temperature (in K)
+2. Relative Luminosity (L/Lo)
+3. Relative Radius (R/Ro)
+4. Absolute Magnitude (Mv)
+5. Star Color 
+6. Spectral Class
+:::
+
+::::
+
+
+
+# Data Exploration
+
+First, we explore our data and check some conditions that are data should even be used. Right away, I see an issue with our data set. There are only 240 observations. It is hard to imagine that 240 stars can be representative of the entire universe. We will continue with this data because we do not have the privilege of obtaining more data with similar variables, and astronomy is a field where researchers must do their best with the data available due to technological constraints (e.g. access to telescopes). Later, we will check the HR-Diagram to check that it is at least visible in our data. If so, we could argue the data set is somewhat representative based on what we understand about stars. One great aspect about this data is that there are no missing values. With this, we can at least trust our data to be reliable because we did not omit any observations or permeate estimates for missing values. 
+
+```{r, warning=FALSE, message=FALSE, echo = TRUE}
+#is.na(data) There were no NAs in data
+dimensions <- dim(data)
+paste0(dimensions[1], " Observations")
+```
+
+Below is a table of the first 6 rows of the data set to give some context on how the data set was provided. As you see, I made each color and spectral type its own variable. This is necessary because the methods require numeric data. Additionally, this gave me a chance to clean the data set. The colors of given to each star were not consistent. For example, there were two different values for "white". There was "White" and "white". The difference is very minimal, but my analyses will read "White" and "white" as two different values. The code for this data manipulation is at the top of the document in the second code chunk. 
+
+Another important note is that the Star Type is encoded as 0-5. This is common practice in Data Science and the data was provided as such. However, in the models, they will be encoded as their original encoded value + 1.
+
+1. Brown Dwarf -> Star Type = 0
+2. Red Dwarf -> Star Type = 1
+3. White Dwarf-> Star Type = 2
+4. Main Sequence -> Star Type = 3
+5. Supergiant -> Star Type = 4
+6. Hypergiant -> Star Type = 5
+
+```{r, warning=FALSE, message=FALSE}
+reactable(head(data)%>%rename("Temp" = Temperature..K.,
+                             "Luminosoity" = Luminosity.L.Lo.,
+                             "Radius" = Radius.R.Ro.,
+                             "Absolute Magnitude" = Absolute.magnitude.Mv.) %>%
+            select(-Star.color, -Spectral.Class), bordered = TRUE, outlined = TRUE, 
+                                                  striped = TRUE, highlight = TRUE)
+```
+
+### HR-Diagram
+
+As mentioned earlier, we were interested to see if the data resembled the Hertzsprung-Russell Diagram as have seen in class. Below is the diagram. We can see a faint resemblance to the HR-Diagram. At the bottom of the graph, we see a cluster of stars that we believe are the dwarfs. From right to left, we see the logarithmic-shaped Main Sequence. Above the Main Sequence are the Supergiants and Hypergiants. We do not see anything out of the ordinary, so this graph makes me more confident in the data set. 
+
+```{r, warning=FALSE, message=FALSE, collapse=TRUE}
+HRdata <- data %>%
+  rename("StarType" = Star.type)
+HRdata$StarType <- ifelse((HRdata$StarType == '0'), "Brown Dwarf", 
+          ifelse((HRdata$StarType == '1'), "Red Dwarf",
+          ifelse((HRdata$StarType == '2'), "White Dwarf",
+          ifelse((HRdata$StarType == '3'), "Main Sequence",
+          ifelse((HRdata$StarType == '4'), "Supergiant", "Hypergiant")))))
+ggplot(HRdata, aes(Temperature..K., log(Luminosity.L.Lo.), shape = StarType, color = StarType)) +
+  scale_x_reverse() +
+  ylab("Luminosity") +
+  xlab("Temperature (K)") +
+  geom_point() +
+  ggtitle("Hertzsprung-Russell Diagram") + 
+  theme_economist()
+```
+
+### Correlation of Variables
+
+In this section, we looked at the correlation of the all variables. Below is a correlational graph. The larger, darker dots represent a bigger correlation between the two intersecting variables. The more blue the dots appear, the closer the correlation is to 1 (perfect positive correlation). Conversely, the more red the dots appear, the closer the correlation is to -1 (perfect negative correlation). An intersection that does not have any color or shape has a correlation close to 0 (No correlation at all). 
+
+It appears that Spectral Class 'M' and Star Color 'Red' have a very high positive correlation. This indicates that most 'M' stars are red. Other class and color matches like this are 'B'/'BlueWhite', 'F'/'YellowWhite', and 'O'/'Blue'. Meanwhile, 'M'/'Blue' are negatively correlated. Temperature and 'M' are negatively correlated. This is to be expected because one of the defining characteristics of 'M' stars are their relatively low temperatures to other classes of stars. Another very large negative correlation is the absolute magnitude and star type. We would assume that the magnitude is referring to mass. If this is the case, then this is to be expected as well because Supergiants and Hypergiants have much more mass than the dwarfs. Therefore, we are not surprised at this conclusion. Overall, we think this correlation graph was helpful in our data exploration. We came across no big surprises and the data seems to align with what we learned in class which is encouraging. 
+
+```{r, warning=FALSE, message=FALSE, collapse=TRUE}
+ModelData <- data %>%
+  select(-Star.color, -Spectral.Class)
+corr = rcorr(as.matrix(ModelData))
+ModelData$Star.type <- as.numeric(ModelData$Star.type)
+corrplot(cor(ModelData))
+ModelData$Star.type <- as.factor(ModelData$Star.type)
+```
+
+# Analyses
+
+##### Split Data
+
+We randomly split the data into 2 data frames. The first one contains *80%* of the data called **Train** and remaining *20%* is called **Test**. We used two models to predict Star Type. We use the Train data to train the model. We then use the test data to create predictions. We then compare the predictions with actual solution to obtain an accuracy measure. 
+
+```{r, warning=FALSE, message=FALSE}
+set.seed(1)
+trainIndex <- createDataPartition(ModelData$Star.type, p = .8,
+                                  list = FALSE,
+                                  times = 1)
+Train <- ModelData[ trainIndex,]
+Test <- ModelData[-trainIndex,]
+Test.y <- Test$Star.type
+Test.x <- Test %>% select(-Star.type)
+```
+
+## Decision Tree
+
+My first method is called a **Decision Tree**. A decision tree is a simple prediction algorithm. Decision trees are very popular and effective supervised learning techniques to predict a target variable. The way the decision tree works is very similar to a flow chart. Decision trees’ nodes start as observations and conclude as predictions. As a single observation traverses down the tree, the prediction is the value of the leaf node at the bottom of the tree. The tree is built by splitting data into subgroups that decrease a specified error metric. The error metric used the Gini impurity metric which is an equation that measures uncertainty in a class prediction. So, each branch represents a decision in which the algorithm measured would decrease the most uncertainty in the prediction. The advantage of decision trees is that they can be used to interpret your findings very easily. However, its disadvantage is that it is prone to overfitting, which means we can generalize very well to other data set because it fit the training data so well. Below is the decision tree for our data set. 
+
+The results of the Decision Tree were not fantastic, but not terrible either. The accuracy was only 33% so the model was correct about 1/3 of the time. We also have the actual decision tree itself. We found that luminosity had the greatest reduction of uncertainty. If the luminosity was less than .0705, its prediction would either 1, 2, or 3 depending on the temperature and magnitude. If greater, then it would be either 4, 5, or 6 depending on its radius from there. We were honestly surprised that the Decision Tree did not produce better results because it seemed like there were few variables that were needed to predict the Star Types. The decision tree did choose the variables, we thought would be the most significant so it appears that there may be a better model.
+
+```{r, warning=FALSE, message=FALSE}
+tree <- tree(Star.type ~ ., data = Train)
+pred = predict(tree, newdata=Test.x, type = 'class')
+ConMax <- table(Test.y, pred)
+TN <- ConMax[1,1]
+FP <- ConMax[1,2]
+FN <- ConMax[2,1]
+TP <- ConMax[2,2]
+test_accuracy <- (TP + TN)/sum(ConMax)
+paste0("Accuracy of Decision Tree = ", test_accuracy)
+plot(tree)
+text(tree,pretty =0)
+```
+
+### Neural Network
+
+The next algorithm we tried was a **neural network**. Neural networks are almost the exact opposite of Decision Trees. The neural network is considered a black box algorithm in that it can produce fantastic results, but it is almost impossible to explain what it did to get there (see picture of neural network below). The best way to think about neural networks is to think about real neural networks in brains. Neurons receive inputs and if activated, fire electrical signals to other neurons. This continues until a desired output is achieved. Our neural network’s inputs are the predictors, and they are sent to the first layer of neurons. If the value of the input meets the threshold of the activation function, it fires into another layer of neurons which is the result. In our case there six nodes. This is because we get a probability of for each star type and then we take the star type with the highest probability to be our prediction.
+
+Due to issues in back propagation mathematics, only one layer of neurons was possible until the early 2000s. Now it is possible to have as many layers as possible, and this is called Deep Learning. After much trial and error, we found the best combination of layers and neurons to be 2 layers with 5 neurons in the first and 2 in the second using a tangent activation function. The truth is that this is very arbitrary and that I could have spent weeks of trying different combinations of activation functions, number of layers, and number neurons per layer. We found accuracy as low as 18% and only as high 43.7%. We increased my accuracy by about 10 percentage points while losing about all our interpretability. This is frustrating because we still cannot provide any reliable predictions, and we cannot provide any explanation for my predictions. However, we believe we could have created a better neural network if we had more time to test different models.
+
+```{r, warning=FALSE, message=FALSE}
+set.seed(1)
+library(neuralnet)
+TrainNN <- Train %>%
+  select(Star.type, Temperature..K., Luminosity.L.Lo., Radius.R.Ro., Absolute.magnitude.Mv., Red, Orange)
+
+# TestNN <- Test %>%
+#   select(Temperature..K., Luminosity.L.Lo., Radius.R.Ro., Absolute.magnitude.Mv., Red, Orange)
+
+
+Train$Star.type <- as.factor(Train$Star.type)
+# TrainScale <- scale(Train)
+nn <- neuralnet(Star.type ~., 
+                data = TrainNN, hidden = c(5,2), err.fct = "sse", act.fct = "tanh",
+                linear.output = FALSE)
+#Test the resulting output
+nn.results <- compute(nn, Test.x)
+results <- data.frame(actual = Test.y, prediction = nn.results$net.result)
+preds <- data.frame("actual" = results$actual, "pred" = as.factor(ifelse(max.col(results[,2:7]) == 1, 1,
+                                                        ifelse(max.col(results[,2:7]) == 2, 2,
+                                                        ifelse(max.col(results[,2:7]) == 3, 3,
+                                                        ifelse(max.col(results[,2:7]) == 4, 4,
+                                                        ifelse(max.col(results[,2:7]) == 5, 5, 6)))))))
+accurates = 0
+for (i in 1:nrow(preds)){
+  if (preds[i,]$actual == preds[i,]$pred){
+    accurates = accurates + 1
+  }
+}
+accuracy = accurates/nrow(preds)
+paste0("Accuracy of Neural Network= ", accuracy)
+```
+
+```{r}
+plot(nn, rep = "best")
+```
+
+## K-Means Clustering
+
+K-Means clustering is not a prediction algorithm. It is a clustering algorithm, and clustering algorithms attempt to find patterns in the data set. The algorithm begins by selecting random points as centers. Every point is assigned to the center that is closest to it. Then the centers move to the average of the points that are assigned to it. This process continues until the centers stop moving. To find correct number of centers, we perform this algorithm 20 times with the number of centers designated 1 through 20. Hopefully, it will appear that there are six centers because that is number of star types 
+
+The code below results a graph of the sum square error (SSE) which is the within cluster summed distance from each point to its assigned cluster. The way to determine what the number of clusters should be is called *The Elbow Method*. Looking at the graph below, the error drops dramatically and then continue to improve almost linearly. We will choose the number of centers in which its marginal error starts to decrease into linear fashion. This point is called the *elbow*. Fortunately, it does look like six is the best option.
+
+
+```{r}
+library(cluster)
+#Data must be normalized because K-Means uses distance compute center assignments
+NormData <- ModelData %>%
+  select(Temperature..K., Luminosity.L.Lo., Radius.R.Ro., Absolute.magnitude.Mv.) %>%
+  mutate(Temperature..K. = (Temperature..K. - mean(Temperature..K.))/sd(Temperature..K.)) %>%
+  mutate(Luminosity.L.Lo. = (Luminosity.L.Lo. - mean(Luminosity.L.Lo.))/sd(Luminosity.L.Lo.)) %>%
+  mutate(Radius.R.Ro. = (Radius.R.Ro. - mean(Radius.R.Ro.))/sd(Radius.R.Ro.))%>%
+  mutate(Absolute.magnitude.Mv. = (Absolute.magnitude.Mv. -
+                                     mean(Absolute.magnitude.Mv.))/sd(Absolute.magnitude.Mv.))
+
+NormData$Star.type <- ModelData$Star.type
+
+sse_clusters = c()
+centers = seq(1:20)
+for (i in 1:20){
+  clusters <- kmeans(NormData[,1:4], centers = i)
+  sse_clusters <- c(sse_clusters,clusters$tot.withinss)
+}
+kmeansData <- data.frame("centers" = centers, "With-in SSE" = sse_clusters)
+ggplot(kmeansData, aes(centers, sse_clusters)) +
+  xlab("Number of Centers") +
+  ylab("With-in SSE") +
+  ggtitle("Finding the Correct Number of Centers \n") +
+  geom_point() +
+  theme_economist()
+
+```
+
+### Results of KMeans{.tabset}
+
+Below are the results of which points were assigned to which center. The goal is that each center should all have the same star type. 
+
+```{r}
+kmeans6 <- kmeans(NormData[,1:4], centers = 6)
+
+centers <- kmeans6$cluster
+ModelData$centers <- centers
+ModelData <-ModelData %>%
+  select(Star.type, centers, Temperature..K.,Luminosity.L.Lo.,
+         Radius.R.Ro., Absolute.magnitude.Mv., M, B, A, F, O,
+         K, G,, Red, BlueWhite, White, YellowWhite, 
+         YellowOrange, Blue, Orange, OrangeRed)
+```
+
+#### Center 1
+
+```{r}
+center1 <- ModelData %>%
+  filter(centers == 1)
+reactable(center1%>%rename("Temp" = Temperature..K.,
+                             "Luminosoity" = Luminosity.L.Lo.,
+                             "Radius" = Radius.R.Ro.,
+                             "Absolute Magnitude" = Absolute.magnitude.Mv.),
+                            bordered = TRUE, outlined = TRUE, striped = TRUE,
+                            highlight = TRUE)
+```
+
+#### Center 2
+
+```{r}
+center2 <- ModelData %>%
+  filter(centers == 2)
+reactable(center2%>%rename("Temp" = Temperature..K.,
+                             "Luminosoity" = Luminosity.L.Lo.,
+                             "Radius" = Radius.R.Ro.,
+                             "Absolute Magnitude" = Absolute.magnitude.Mv.),
+                            bordered = TRUE, outlined = TRUE, striped = TRUE,
+                            highlight = TRUE)
+```
+
+#### Center 3
+
+```{r}
+center3 <- ModelData %>%
+  filter(centers == 3)
+reactable(center3%>%rename("Temp" = Temperature..K.,
+                             "Luminosoity" = Luminosity.L.Lo.,
+                             "Radius" = Radius.R.Ro.,
+                             "Absolute Magnitude" = Absolute.magnitude.Mv.),
+                            bordered = TRUE, outlined = TRUE, striped = TRUE,
+                            highlight = TRUE)
+```
+
+#### Center 4
+
+```{r}
+center4 <- ModelData %>%
+  filter(centers == 4)
+reactable(center4%>%rename("Temp" = Temperature..K.,
+                             "Luminosoity" = Luminosity.L.Lo.,
+                             "Radius" = Radius.R.Ro.,
+                             "Absolute Magnitude" = Absolute.magnitude.Mv.),
+                            bordered = TRUE, outlined = TRUE, striped = TRUE,
+                            highlight = TRUE)
+```
+
+#### Center 5
+
+```{r}
+center5 <- ModelData %>%
+  filter(centers == 5)
+reactable(center5%>%rename("Temp" = Temperature..K.,
+                             "Luminosoity" = Luminosity.L.Lo.,
+                             "Radius" = Radius.R.Ro.,
+                             "Absolute Magnitude" = Absolute.magnitude.Mv.),
+                            bordered = TRUE, outlined = TRUE, striped = TRUE,
+                            highlight = TRUE)
+```
+
+#### Center 6
+
+```{r}
+center6 <- ModelData %>%
+  filter(centers == 6)
+reactable(center6%>%rename("Temp" = Temperature..K.,
+                             "Luminosoity" = Luminosity.L.Lo.,
+                             "Radius" = Radius.R.Ro.,
+                             "Absolute Magnitude" = Absolute.magnitude.Mv.),
+                            bordered = TRUE, outlined = TRUE, striped = TRUE,
+                            highlight = TRUE)
+```
+
+#### Median Star Type of each Center
+
+```{r}
+MedianByCenters <- ModelData %>%
+  group_by(centers) %>%
+  summarise("Median Star Type" = median(as.numeric(Star.type)))
+reactable(MedianByCenters,bordered = TRUE, outlined = TRUE, striped = TRUE,
+                            highlight = TRUE)
+```
+
+#### Median Center of each Star Type
+
+```{r}
+MedianByTypes <- ModelData %>%
+  group_by(Star.type) %>%
+  summarise("Median Centers" = median(centers))
+reactable(MedianByTypes,bordered = TRUE, outlined = TRUE, striped = TRUE,
+                            highlight = TRUE)
+```
+
+### Discussion on Results
+
+These results are the most encouraging results that we have. In fact, I have never seen K-Means work so well on actual data set. I’ve only seen K-Means work this well on fabricated data or the classic Iris flower data set. It is so impressive because almost all the centers contain all the same Star Types. While there is no true way to test the K-Means model itself, I think this could be super useful for future data collection. More data will only make this better and I think eventually could become predictive. Looking at the Median Star Type of each Center, we can see that almost each center had a different Median Star Type which suggests that each center contained mostly of one Star Type. This is very exciting and encouraging for future predictions with K-Means.
+
+### Back to HR-Diagram
+
+```{r}
+HRdata <- ModelData %>%
+  rename("StarType" = Star.type)
+HRdata$StarType <- ifelse((HRdata$StarType == '0'), "Brown Dwarf", 
+          ifelse((HRdata$StarType == '1'), "Red Dwarf",
+          ifelse((HRdata$StarType == '2'), "White Dwarf",
+          ifelse((HRdata$StarType == '3'), "Main Sequence",
+          ifelse((HRdata$StarType == '4'), "Supergiant", "Hypergiant")))))
+HRdata$centers <- as.factor(HRdata$centers)
+ggplot(HRdata, aes(Temperature..K., log(Luminosity.L.Lo.), shape = centers, color = centers)) +
+  scale_x_reverse() +
+  ylab("Luminosity") +
+  xlab("Temperature (K)") +
+  geom_point() +
+  ggtitle("Hertzsprung-Russell Diagram") + 
+  theme_economist()
+```
+
+I recreated the HR-Diagram, and it is amazingly similar to the original HR-Diagram that was made in the beginning. This is further evidence on how well the K-Means algorithm worked. When comparing to the original diagram, it is almost the same except for center 6 which seemed to overcompensate for other centers.  
+
+# Conclusion
+
+I really enjoyed this project because I almost gave up trying to classify the stars when my neural network failed. K-Means was one of the first algorithms I learned in Artificial Intelligence (CS339) and Advanced Methods in DA (DA350). It seemed like an outdated method because it did not appear as fancy as other methods we were taught. This project was one of the most influential Data Analytics/Computer Science projects I have ever done because I reverted to an algorithm that I have never regarded as useful. Even though I did not get a perfect prediction model, I found a unique way to classify stars, and I was shocked how well I was able to recreate the HR-Diagram. I enjoyed using my skills from DA and CS and applying them to astronomy and finding new insights in the subjects.
+
+
+
+
+
+
+
