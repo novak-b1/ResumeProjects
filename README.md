@@ -21,3 +21,6 @@ This project is a continuation of my Machine Learning inquiry. The algorithm I u
 
 ## Ensemble Tree Methods
 In this project, I use many different types of trees to predict if a person would enroll in a bank promotional program. The types of trees that evaluate are simple decision trees, Random Forests, Bagging, and Gradient Boosting. Included is the code that generated results as well as paper that explains each method and result in detail.
+
+## Writing Samples
+For more writing samples and individual research I have completed, please refer to the 'Writing Samples' folder.
